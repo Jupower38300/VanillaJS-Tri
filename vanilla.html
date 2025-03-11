@@ -1,327 +1,3 @@
-<!-- <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <title>Vanilla JS Example</title>
-    <meta charset="utf-8" />
-    <script type="importmap">
-      {
-        "imports": {
-          "vue": "https://unpkg.com/vue@3/dist/vue.esm-browser.js"
-        }
-      }
-    </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="light dark" />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.fluid.classless.min.css"
-    />
-    <style>
-      th {
-        padding: 0.5rem;
-        user-select: none;
-        text-align: left;
-        cursor: pointer;
-      }
-      #age-sort-icon,
-      #name-sort-icon {
-        display: inline-block;
-        font-size: 0.7rem;
-        margin-left: 3px;
-        transition: transform 0.2s ease-in-out;
-      }
-      .asc {
-        transform: rotate(180deg);
-      }
-      .desc {
-        transform: rotate(0deg);
-      }
-      .middle {
-        transform: rotate(90deg);
-      }
-      body {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        margin: 0;
-        min-height: 100vh;
-      }
-      #spacer {
-        height: 1px;
-        background-color: grey;
-        margin: 10px 0 20px;
-        width: 40%;
-      }
-    </style>
-  </head>
-
-  <body>
-    <header>
-      <h1>Vanilla JS Example</h1>
-      <div id="spacer"></div>
-    </header>
-    <main>
-      <section style="display: flex; flex-direction: row; align-items: center">
-        <button id="fetch-users" style="min-width: 10em">
-          Fetch New Users
-        </button>
-        <button id="fetch-more" style="min-width: 10em; margin: 0 10px">
-          Add New Users
-        </button>
-        <select id="fetch-gender" style="margin: 10px 0; max-width: 15em">
-          <option value="">Select Gender</option>
-          <option value="male">Hommes</option>
-          <option value="female">Femmes</option>
-        </select>
-        <div style="margin-left: 10px; margin-top: -17px">
-          <label for="min-age">Min Age:</label>
-          <input id="min-age" type="number" placeholder="Min Age" />
-        </div>
-        <div style="margin-left: 10px; margin-top: -17px">
-          <label for="max-age">Max Age:</label>
-          <input id="max-age" type="number" placeholder="Max Age" />
-        </div>
-      </section>
-
-      <section>
-        <label for="search-input">Search for a user:</label>
-        <input
-          id="search-input"
-          type="search"
-          placeholder="Search..."
-          autocomplete="off"
-        />
-      </section>
-
-      <section>
-        <h2>
-          Users <span id="total-users-shown">0</span> sur
-          <span id="user-count">0</span>
-        </h2>
-        <table id="tbl-users">
-          <thead>
-            <tr>
-              <th>Photo</th>
-              <th id="sort-name">
-                Nom <span id="name-sort-icon" class="middle">&#9650;</span>
-              </th>
-              <th id="sort-age">
-                Age <span id="age-sort-icon" class="middle">&#9650;</span>
-              </th>
-              <th>Gender</th>
-              <th>Email</th>
-              <th>Tel</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </section>
-    </main>
-
-    <script>
-      let usersData = [];
-      let totalUsersCount = 0;
-      let sortOrder = { name: 0, age: 0 };
-      let genderFilter = "";
-      let searchQuery = "";
-      let minAge = null;
-      let maxAge = null;
-
-      async function fetchUsers(reset = false) {
-        try {
-          const response = await fetch("https://randomuser.me/api/?results=20");
-          const { results } = await response.json();
-
-          if (reset) {
-            usersData = results.map((user, index) => ({
-              ...user,
-              _originalIndex: index,
-            }));
-            totalUsersCount = results.length;
-          } else {
-            const startIndex = usersData.length;
-            const newResults = results.map((user, index) => ({
-              ...user,
-              _originalIndex: startIndex + index,
-            }));
-            usersData = [...usersData, ...newResults];
-            totalUsersCount += results.length;
-          }
-
-          updateUI();
-        } catch (error) {
-          console.error("Error fetching users:", error);
-        }
-      }
-
-      function updateUI() {
-        const filteredUsers = usersData.filter((user) => {
-          if (genderFilter && user.gender !== genderFilter) return false;
-
-          const age = user.dob.age;
-          if (minAge !== null && age < minAge) return false;
-          if (maxAge !== null && age > maxAge) return false;
-
-          if (searchQuery) {
-            const normalizedQuery = normalizeText(searchQuery);
-            const fullName = normalizeText(
-              `${user.name.first} ${user.name.last}`
-            );
-
-            const [firstNameQuery, lastNameQuery] = normalizedQuery.split(" ");
-
-            if (lastNameQuery) {
-              const normalizedFirstName = normalizeText(user.name.first);
-              const normalizedLastName = normalizeText(user.name.last);
-              if (
-                !normalizedFirstName.includes(firstNameQuery) ||
-                !normalizedLastName.includes(lastNameQuery)
-              ) {
-                return false;
-              }
-            } else {
-              if (!fullName.includes(normalizedQuery)) return false;
-            }
-          }
-
-          return true;
-        });
-
-        const tbody = document.querySelector("#tbl-users tbody");
-        tbody.innerHTML =
-          filteredUsers.length > 0
-            ? ""
-            : "<tr><td colspan='6' style='text-align: center;'>Aucun utilisateur</td></tr>";
-
-        updateCount(filteredUsers.length);
-        renderUsers(filteredUsers);
-      }
-
-      function updateCount(shown) {
-        const totalUsersShownElement =
-          document.getElementById("total-users-shown");
-        const userCountElement = document.getElementById("user-count");
-
-        if (usersData.length === 0) {
-          totalUsersShownElement.textContent = "--";
-          userCountElement.textContent = "--";
-        } else {
-          totalUsersShownElement.textContent = shown ? `${shown}` : "--";
-          userCountElement.textContent = totalUsersCount
-            ? `${totalUsersCount}`
-            : "--";
-        }
-      }
-
-      function renderUsers(users) {
-        const tbody = document.querySelector("#tbl-users tbody");
-        tbody.innerHTML = "";
-        const fragment = document.createDocumentFragment();
-
-        users.forEach((user) => {
-          const row = document.createElement("tr");
-          row.innerHTML = `
-            <td><img src="${user.picture.thumbnail}" alt="${
-            user.name.first
-          } Photo"></td>
-            <td>${user.name.first} ${user.name.last}</td>
-            <td>${user.dob.age}</td>
-            <td>${user.gender === "male" ? "♂️" : "♀️"}</td>
-            <td>${user.email}</td>
-            <td>${user.phone}</td>
-          `;
-          fragment.appendChild(row);
-        });
-
-        tbody.appendChild(fragment);
-      }
-
-      function sortUsers(type) {
-        const icon = document.getElementById(`${type}-sort-icon`);
-        icon.classList.add("spin");
-        setTimeout(() => icon.classList.remove("spin"), 200);
-
-        sortOrder[type] = (sortOrder[type] + 1) % 3;
-
-        if (sortOrder[type] === 0) {
-          usersData.sort((a, b) => a._originalIndex - b._originalIndex);
-        } else if (type === "name") {
-          if (sortOrder[type] === 1) {
-            usersData.sort((a, b) => a.name.first.localeCompare(b.name.first));
-          } else if (sortOrder[type] === 2) {
-            usersData.sort((a, b) => b.name.first.localeCompare(a.name.first));
-          }
-        } else if (type === "age") {
-          if (sortOrder[type] === 1) {
-            usersData.sort((a, b) => a.dob.age - b.dob.age);
-          } else if (sortOrder[type] === 2) {
-            usersData.sort((a, b) => b.dob.age - a.dob.age);
-          }
-        }
-        icon.className =
-          sortOrder[type] === 1
-            ? "asc"
-            : sortOrder[type] === 2
-            ? "desc"
-            : "middle";
-
-        updateUI();
-      }
-
-      function debounce(fn, delay = 300) {
-        let timeout;
-        return (...args) => {
-          clearTimeout(timeout);
-          timeout = setTimeout(() => fn(...args), delay);
-        };
-      }
-
-      function searchUsers() {
-        searchQuery = document.getElementById("search-input").value.trim();
-        updateUI();
-      }
-
-      function normalizeText(text) {
-        return text
-          .toLowerCase()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "");
-      }
-
-      document
-        .getElementById("fetch-users")
-        .addEventListener("click", () => fetchUsers(true));
-      document
-        .getElementById("fetch-more")
-        .addEventListener("click", () => fetchUsers(false));
-      document
-        .getElementById("fetch-gender")
-        .addEventListener("change", (e) => {
-          genderFilter = e.target.value;
-          updateUI();
-        });
-      document
-        .getElementById("search-input")
-        .addEventListener("input", debounce(searchUsers));
-      document.getElementById("min-age").addEventListener("input", (e) => {
-        minAge = e.target.value ? parseInt(e.target.value) : null;
-        updateUI();
-      });
-      document.getElementById("max-age").addEventListener("input", (e) => {
-        maxAge = e.target.value ? parseInt(e.target.value) : null;
-        updateUI();
-      });
-      document
-        .getElementById("sort-name")
-        .addEventListener("click", () => sortUsers("name"));
-      document
-        .getElementById("sort-age")
-        .addEventListener("click", () => sortUsers("age"));
-    </script>
-  </body>
-</html>
--->
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -406,11 +82,11 @@
         </select>
         <div style="margin-left: 10px">
           <label for="min-age">Min Age:</label>
-          <input v-model.number="minAge" type="number" placeholder="Min Age" />
+          <input v-model="minAgeInput" type="number" placeholder="Min Age" />
         </div>
         <div style="margin-left: 10px">
           <label for="max-age">Max Age:</label>
-          <input v-model.number="maxAge" type="number" placeholder="Max Age" />
+          <input v-model="maxAgeInput" type="number" placeholder="Max Age" />
         </div>
       </section>
 
@@ -476,6 +152,21 @@
           const minAge = ref(null);
           const maxAge = ref(null);
 
+          // Custom getter/setter for minAge and maxAge
+          const minAgeInput = computed({
+            get: () => (minAge.value === null ? "" : minAge.value),
+            set: (value) => {
+              minAge.value = value === "" ? null : Number(value);
+            },
+          });
+
+          const maxAgeInput = computed({
+            get: () => (maxAge.value === null ? "" : maxAge.value),
+            set: (value) => {
+              maxAge.value = value === "" ? null : Number(value);
+            },
+          });
+
           async function fetchUsers(reset = false) {
             try {
               const response = await fetch(
@@ -508,11 +199,13 @@
                 if (minAge.value !== null && age < minAge.value) return false;
                 if (maxAge.value !== null && age > maxAge.value) return false;
                 if (searchQuery.value) {
-                  const query = normalizeText(searchQuery.value);
+                  const queryParts = normalizeText(searchQuery.value).split(
+                    /\s+/
+                  );
                   const fullName = normalizeText(
                     `${user.name.first} ${user.name.last}`
                   );
-                  return fullName.includes(query);
+                  return queryParts.every((part) => fullName.includes(part));
                 }
                 return true;
               })
@@ -545,8 +238,8 @@
             filteredUsers,
             genderFilter,
             searchQuery,
-            minAge,
-            maxAge,
+            minAgeInput,
+            maxAgeInput,
             toggleSort,
             getSortClass,
           };
